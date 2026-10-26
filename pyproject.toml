@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conta_ec"
+version = "1.0.0"
+description = "Contabilidad de Ecuador: plan de cuentas, asientos, estados financieros y anexos del SRI."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "jurdin32", email = "jurdin32@users.noreply.github.com" }]
+keywords = ["contabilidad", "ecuador", "sri", "asientos", "estados-financieros", "rdep", "ats"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Office/Business :: Financial :: Accounting",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+# Las pantallas y el admin: Django, y los paquetes con los que se entiende
+# (los comprobantes del SRI y los permisos por opción).
+django = ["Django>=4.2", "factec[django]>=1.12", "personalize_options>=1.2"]
+dev = ["pytest>=7.0", "Django>=4.2"]
+
+[project.urls]
+Homepage = "https://github.com/jurdin32/conta_ec"
+Repositorio = "https://github.com/jurdin32/conta_ec.git"
+Seguimiento = "https://github.com/jurdin32/conta_ec/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+conta_ec = ["py.typed", "NORMATIVA.md"]
+"conta_ec.django" = ["migrations/*.py"]
