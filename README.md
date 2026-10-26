@@ -6,8 +6,29 @@ cierre, compras y retenciones, anexos del SRI (ATS, RDEP) y empleados.
 
 ## Instalación
 
+Desde GitHub:
+
 ```bash
-pip install -e ~/Desktop/Scripts/conta_ec
+pip install "conta_ec @ git+https://github.com/jurdin32/conta_ec.git"
+```
+
+Para fijar una versión (recomendado en producción):
+
+```bash
+pip install "conta_ec @ git+https://github.com/jurdin32/conta_ec.git@v1.0.0"
+```
+
+Y con las pantallas y el admin (Django, el paquete del SRI y el de permisos):
+
+```bash
+pip install "conta_ec[django] @ git+https://github.com/jurdin32/conta_ec.git"
+```
+
+Para trabajar sobre el paquete, en modo editable desde el clon:
+
+```bash
+git clone https://github.com/jurdin32/conta_ec.git
+pip install -e ./conta_ec
 ```
 
 En `INSTALLED_APPS`, después de los comprobantes del SRI:
