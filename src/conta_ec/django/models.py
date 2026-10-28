@@ -575,6 +575,11 @@ class Asiento(models.Model):
 
         with transaction.atomic():
             if not self.numero:
+                # El periodo se bloquea mientras se numera: dos asientos a la vez
+                # (el worker contabilizando facturas y alguien en pantalla) sacaban
+                # el mismo correlativo, y el libro diario quedaba con dos
+                # «2026-000123».
+                PeriodoContable.objects.select_for_update().filter(pk=self.periodo_id).first()
                 self.numero = self._siguiente_numero()
             self.estado = EstadoAsiento.CONTABILIZADO.value
             if usuario is not None:

@@ -22,6 +22,16 @@ def _tablas() -> set:
 def traer(apps, schema_editor):
     tablas = _tablas()
     viejas = sorted(t for t in tablas if t.startswith(PREFIJO_VIEJO))
+    # ``INSERT OR IGNORE`` es de SQLite; en PostgreSQL lo mismo se escribe con
+    # ``ON CONFLICT DO NOTHING``. Sin esto, migrar una instalación vieja en
+    # PostgreSQL se paraba en esta migración.
+    if schema_editor.connection.vendor == "postgresql":
+        plantilla = (
+            'INSERT INTO "{nueva}" ({lista}) SELECT {lista} FROM "{vieja}" '
+            "ON CONFLICT DO NOTHING"
+        )
+    else:
+        plantilla = 'INSERT OR IGNORE INTO "{nueva}" ({lista}) SELECT {lista} FROM "{vieja}"'
 
     with connection.cursor() as cursor:
         for vieja in viejas:
@@ -33,10 +43,7 @@ def traer(apps, schema_editor):
                 for columna in connection.introspection.get_table_description(cursor, nueva)
             ]
             lista = ", ".join(f'"{nombre}"' for nombre in columnas)
-            cursor.execute(
-                f'INSERT OR IGNORE INTO "{nueva}" ({lista}) '
-                f'SELECT {lista} FROM "{vieja}"'
-            )
+            cursor.execute(plantilla.format(nueva=nueva, lista=lista, vieja=vieja))
 
 
 def devolver(apps, schema_editor):
