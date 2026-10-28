@@ -278,6 +278,10 @@ def _detalle_venta(clase: str, documento: Any) -> ET.Element:
     if comprobante is None:
         raise ErrorAnexo(f"El documento {documento} no está autorizado por el SRI.")
     bases = _bases_ats(documento)
+    # Las notas de crédito van con signo negativo, como en el total de ventas: si
+    # el detalle fuera positivo, la suma de los renglones no daría el totalVentas
+    # y el anexo no cuadra.
+    signo = -1 if clase == "nota_credito" else 1
     detalle = ET.Element("detalleVentas")
     _agregar(detalle, "tpIdCliente", documento.receptor.tipo_identificacion)
     _agregar(detalle, "idCliente", documento.receptor.identificacion)
@@ -288,13 +292,19 @@ def _detalle_venta(clase: str, documento: Any) -> ET.Element:
     _agregar(
         detalle,
         "baseNoGraIva",
-        _importe(bases["baseNoGraIva"] + bases["baseImpExe"]),
+        _importe(signo * (bases["baseNoGraIva"] + bases["baseImpExe"])),
     )
-    _agregar(detalle, "baseImponible", _importe(bases["baseImponible"]))
-    _agregar(detalle, "baseImpGrav", _importe(bases["baseImpGrav"]))
-    _agregar(detalle, "montoIva", _importe(documento.valor_iva))
-    _agregar(detalle, "valorRetIva", _importe(getattr(documento, "valor_ret_iva", CERO)))
-    _agregar(detalle, "valorRetRenta", _importe(getattr(documento, "valor_ret_renta", CERO)))
+    _agregar(detalle, "baseImponible", _importe(signo * bases["baseImponible"]))
+    _agregar(detalle, "baseImpGrav", _importe(signo * bases["baseImpGrav"]))
+    _agregar(detalle, "montoIva", _importe(signo * documento.valor_iva))
+    _agregar(
+        detalle, "valorRetIva",
+        _importe(signo * (getattr(documento, "valor_ret_iva", CERO) or CERO)),
+    )
+    _agregar(
+        detalle, "valorRetRenta",
+        _importe(signo * (getattr(documento, "valor_ret_renta", CERO) or CERO)),
+    )
     _formas_de_pago(detalle, str(getattr(documento, "forma_pago", "01") or "01"))
     return detalle
 

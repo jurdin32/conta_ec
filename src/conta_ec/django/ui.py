@@ -19,9 +19,24 @@ CAMPOS_POR_DEFECTO = "facturero.controles"
 
 
 def _traer(ruta: str) -> Any:
+    """Una función (``paquete.modulo.funcion``) o un módulo entero (``paquete.modulo``).
+
+    Con :func:`import_string` a secas, ``"facturero.controles"`` solo se encontraba
+    si alguien lo había importado antes: el módulo existe, pero el paquete no lo
+    tiene todavía como atributo. Por eso la contabilidad fallaba al importarse
+    antes que el proyecto. Si no es un atributo, se importa como módulo.
+    """
+    from importlib import import_module
+
     from django.utils.module_loading import import_string
 
-    return import_string(ruta)
+    try:
+        return import_string(ruta)
+    except ImportError:
+        try:
+            return import_module(ruta)
+        except ImportError:
+            raise
 
 
 def _ajuste(nombre: str, por_defecto: str) -> str:

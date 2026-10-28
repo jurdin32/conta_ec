@@ -12,15 +12,43 @@ from .models import (
     ConfiguracionContable,
     Cuenta,
     Empleado,
+    EstadoAsiento,
     LineaAsiento,
     PeriodoContable,
 )
+
+
+def _cerrado(objeto: Any) -> bool:
+    """¿La partida ya está en los libros? Entonces no se edita, se anula."""
+    return (
+        objeto is not None
+        and getattr(objeto, "estado", "") != EstadoAsiento.BORRADOR.value
+    )
+
+
+def _todos_los_campos(modelo: Any) -> list[str]:
+    return [campo.name for campo in modelo._meta.fields]
 
 
 class LineaInline(admin.TabularInline):
     model = LineaAsiento
     extra = 0
     autocomplete_fields = ["cuenta", "tercero"]
+
+    def get_readonly_fields(self, request, obj=None):
+        if _cerrado(obj):
+            return _todos_los_campos(self.model)
+        return super().get_readonly_fields(request, obj)
+
+    def has_add_permission(self, request, obj=None):
+        if _cerrado(obj):
+            return False
+        return super().has_add_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if _cerrado(obj):
+            return False
+        return super().has_delete_permission(request, obj)
 
 
 @admin.register(Cuenta)
@@ -50,6 +78,18 @@ class AsientoAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("periodo")
 
+    # Una partida contabilizada es un documento: no se edita ni se borra desde el
+    # admin. Si hay que corregirla, se anula y se hace otra, y así queda el rastro.
+    def get_readonly_fields(self, request, obj=None):
+        if _cerrado(obj):
+            return _todos_los_campos(self.model)
+        return super().get_readonly_fields(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if _cerrado(obj):
+            return False
+        return super().has_delete_permission(request, obj)
+
 
 @admin.register(LineaAsiento)
 class LineaAdmin(admin.ModelAdmin):
@@ -57,6 +97,16 @@ class LineaAdmin(admin.ModelAdmin):
     list_filter = ["cuenta__tipo"]
     search_fields = ["descripcion", "documento"]
     autocomplete_fields = ["asiento", "cuenta", "tercero"]
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None and _cerrado(obj.asiento):
+            return _todos_los_campos(self.model)
+        return super().get_readonly_fields(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if obj is not None and _cerrado(obj.asiento):
+            return False
+        return super().has_delete_permission(request, obj)
 
 
 @admin.register(Compra)

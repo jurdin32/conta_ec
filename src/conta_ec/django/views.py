@@ -46,6 +46,7 @@ from .models import (
     Cuenta,
     Empleado,
     EstadoAsiento,
+    LineaAsiento,
     PeriodoContable,
     TipoAsiento,
 )
@@ -199,6 +200,54 @@ def contabilizar_pendientes(request: HttpRequest) -> HttpResponse:
 # ------------------------------------------------------------- plan de cuentas
 
 
+def _saldos_del_plan(hasta=None):
+    """El saldo de cada cuenta —propio y con sus hijas— en dos consultas.
+
+    Antes se preguntaba cuenta por cuenta (una consulta por cada hija y otra por
+    cada saldo): con el plan cargado eran más de 900 consultas y la pantalla
+    tardaba más de un segundo. Ahora se leen los movimientos de una vez y el árbol
+    se suma en memoria.
+    """
+    from collections import defaultdict
+
+    from django.db.models import Sum
+
+    consulta = LineaAsiento.objects.filter(asiento__estado=EstadoAsiento.CONTABILIZADO.value)
+    if hasta:
+        consulta = consulta.filter(asiento__fecha__lte=hasta)
+    propios = {
+        fila["cuenta_id"]: (fila["debe"] or CERO) - (fila["haber"] or CERO)
+        for fila in consulta.values("cuenta_id").annotate(debe=Sum("debe"), haber=Sum("haber"))
+    }
+
+    cuentas = list(Cuenta.objects.only("id", "codigo", "padre_id", "naturaleza"))
+    hijas_de = defaultdict(list)
+    for cuenta in cuentas:
+        hijas_de[cuenta.padre_id].append(cuenta)
+
+    acumulado = {}
+
+    def sumar(cuenta):
+        """El saldo de la cuenta y todo lo que cuelga de ella (debe − haber)."""
+        if cuenta.pk in acumulado:
+            return acumulado[cuenta.pk]
+        total = propios.get(cuenta.pk, CERO)
+        for hija in hijas_de.get(cuenta.pk, []):
+            total += sumar(hija)
+        acumulado[cuenta.pk] = total
+        return total
+
+    saldos = {}
+    for cuenta in cuentas:
+        total = sumar(cuenta)
+        saldos[cuenta.pk] = {
+            "propio": propios.get(cuenta.pk, CERO),
+            "saldo": total if cuenta.es_deudora else -total,
+            "hijas": bool(hijas_de.get(cuenta.pk)),
+        }
+    return saldos
+
+
 @login_required
 @requiere_lectura("plan_cuentas")
 def plan(request: HttpRequest) -> HttpResponse:
@@ -214,16 +263,13 @@ def plan(request: HttpRequest) -> HttpResponse:
             cuenta for cuenta in cuentas
             if buscado in cuenta.codigo.lower() or buscado in cuenta.nombre.lower()
         ]
+    saldos = _saldos_del_plan(hasta=hoy)
     filas = []
     for cuenta in cuentas:
-        filas.append(
-            {
-                "cuenta": cuenta,
-                "saldo": cuenta.saldo(hasta=hoy),
-                "propio": cuenta.saldo_directo(hasta=hoy),
-                "hijas": cuenta.hijas.exists(),
-            }
+        suyos = saldos.get(
+            cuenta.pk, {"propio": 0, "saldo": 0, "hijas": False}
         )
+        filas.append({"cuenta": cuenta, **suyos})
     return render(
         request,
         "contabilidad/plan.html",
